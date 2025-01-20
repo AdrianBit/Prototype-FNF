@@ -12,16 +12,15 @@ body {
   }
   .game-area {
     position: relative;
-    width: 300px; /* Aseguramos un ancho fijo */
+    width: 330px; /* Aseguramos un ancho fijo */
     height: 500px;
     border: 2px solid #fff;
     overflow: hidden;
   }
   .arrow {
     position: absolute;
-    width: 50px;
-    height: 50px;
-    background: red;
+    width: 75px;
+    height: 75px;
     text-align: center;
     line-height: 50px;
     font-size: 24px;
@@ -35,11 +34,25 @@ body {
     padding-top: 20px;
   }
   .target {
-    width: 50px;
-    height: 50px;
-    border: 2px solid #fff;
+    width: 75px;
+    height: 75px;
     text-align: center;
     line-height: 50px;
     font-size: 24px;
-    background-color: rgba(255, 255, 255, 0.1);
+  }
+  #left{
+    background-image: url('sprites/Targets/LeftTarget.png');
+    background-size: contain;
+  }
+  #down{
+    background-image: url('sprites/Targets/DownTarget.png');
+    background-size: contain;
+  }
+  #up{
+    background-image: url('sprites/Targets/UpTarget.png');
+    background-size: contain;
+  }
+  #right{
+    background-image: url('sprites/Targets/RightTarget.png');
+    background-size: contain;
   }

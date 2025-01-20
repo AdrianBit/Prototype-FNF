@@ -1,18 +1,19 @@
 const button = document.getElementById("start");
 const gameArea = document.getElementById("gameArea");
 const keys = { ArrowLeft: "←", ArrowUp: "↑", ArrowDown: "↓", ArrowRight: "→" };
+const wasd = { a: "←", w: "↑", s: "↓", d: "→" };
 const positions = {
-  ArrowLeft: "4%",
-  ArrowUp: "54%",
-  ArrowDown: "29%",
-  ArrowRight: "79%"
+  ArrowLeft: "2%",
+  ArrowUp: "52%",
+  ArrowDown: "26%",
+  ArrowRight: "76%"
 };
 let score = 0;
 let startTime;
 let chartData;
 let audio1;
 let audio2;
-let audioDelay = 2000; // Retraso en milisegundos (2 segundos)
+let audioDelay = 1350; // Retraso en milisegundos (2 segundos)
 
 // Función para cargar un archivo JSON
 async function loadChart(filePath) {
@@ -25,10 +26,29 @@ async function loadChart(filePath) {
 function spawnArrow(direction, speed) {
   const arrow = document.createElement("div");
   arrow.classList.add("arrow");
-  arrow.textContent = keys[direction];
   arrow.style.bottom = "0"; // Empieza desde abajo
   arrow.style.left = positions[direction]; // Posición horizontal exacta
   arrow.dataset.direction = direction; // Guardar dirección como atributo
+  switch (direction) {
+    case "ArrowLeft":
+      arrow.style.backgroundImage = "url('sprites/Arrows/LeftArrow.png')";
+      arrow.style.backgroundSize = "contain";
+      break;
+    case "ArrowUp":
+      arrow.style.backgroundImage = "url('sprites/Arrows/UpArrow.png')";
+      arrow.style.backgroundSize = "contain";
+      break;
+    case "ArrowDown":
+      arrow.style.backgroundImage = "url('sprites/Arrows/DownArrow.png')";
+      arrow.style.backgroundSize = "contain";
+      break;
+    case "ArrowRight":
+      arrow.style.backgroundImage = "url('sprites/Arrows/RightArrow.png')";
+      arrow.style.backgroundSize = "contain";
+      break;
+    default:
+      break;
+  }
   gameArea.appendChild(arrow);
 
   // Animar la flecha hacia arriba
@@ -57,7 +77,7 @@ function startGame() {
   }, audioDelay);
 
   // Obtener la velocidad desde el JSON
-  const speed = chartData.song.speed*1.7 || 1; // Valor por defecto es 1 si no se especifica
+  const speed = chartData.song.speed*2.4 || 1; // Valor por defecto es 1 si no se especifica
 
   const gameLoop = () => {
     const elapsedTime = (performance.now() - startTime) / 1000; // Tiempo en segundos
@@ -120,17 +140,38 @@ function startGame() {
   requestAnimationFrame(gameLoop);
 }
 
-// Detectar entrada del teclado y verificar colisión con los targets
 window.addEventListener("keydown", (e) => {
-  if (keys[e.key]) {
+  let mappedKey = e.key;
+
+  // Mapear las teclas 'wasd' a las flechas
+  switch (e.key) {
+    case 'a':
+      mappedKey = 'ArrowLeft';
+      break;
+    case 'w':
+      mappedKey = 'ArrowUp';
+      break;
+    case 's':
+      mappedKey = 'ArrowDown';
+      break;
+    case 'd':
+      mappedKey = 'ArrowRight';
+      break;
+    default:
+      // Si la tecla no es 'wasd', usamos la tecla original (para las flechas)
+      break;
+  }
+
+  // Verifica si la tecla es una flecha y procesar las colisiones
+  if (keys[mappedKey]) {
     const activeArrows = document.querySelectorAll('.arrow');
     activeArrows.forEach(arrow => {
       const arrowRect = arrow.getBoundingClientRect();
-      const target = document.getElementById(e.key.replace("Arrow", "").toLowerCase());
+      const target = document.getElementById(mappedKey.replace("Arrow", "").toLowerCase());
       const targetRect = target.getBoundingClientRect();
 
       // Comprobar si la flecha está cerca del target y coincide la dirección
-      if (Math.abs(arrowRect.top - targetRect.top) < 30 && arrow.dataset.direction === e.key) {
+      if (Math.abs(arrowRect.top - targetRect.top) < 30 && arrow.dataset.direction === mappedKey) {
         if (gameArea.contains(arrow)) {
           arrow.remove(); // Eliminar flecha si coincide
           score += 10;
@@ -140,6 +181,8 @@ window.addEventListener("keydown", (e) => {
     });
   }
 });
+
+
 
 // Inicializar el juego al hacer clic en el botón
 button.addEventListener("click", async () => {
