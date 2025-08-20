@@ -15,17 +15,27 @@ body {
 
 .main-content {
   display: grid;
-  grid-template-columns: 33% 33% 33%; /* izquierda, game-area, sprite */
+  grid-template-columns: 30% 40% 30%; /* izquierda, game-area, sprite */
   justify-content: center;
   width: 100vw;
   height: 100vh;
   margin-top: 40px;
 }
 
+#enemyCanvas {
+  justify-self: end;
+  display: block;
+  width: 400px;
+  height: 400px;
+  background: transparent;
+  grid-column: 1;
+  align-self: center;
+}
+
 .game-area {
   position: relative;
-  width: 330px;
-  height: 500px;
+  width: 500px;
+  height: 700px;
   border: none;
   overflow: hidden;
   margin: 0 auto;
@@ -43,8 +53,8 @@ body {
 
   .arrow {
     position: absolute;
-    width: 75px;
-    height: 75px;
+    width: 110px;
+    height: 110px;
     text-align: center;
     line-height: 50px;
     font-size: 24px;
@@ -55,11 +65,11 @@ body {
     width: 100%;
     display: flex;
     justify-content: space-around; /* Asegura un espaciado consistente */
-    padding-top: 20px;
+    padding-top: 40px;
   }
   .target {
-    width: 75px;
-    height: 75px;
+    width: 110px;
+    height: 110px;
     text-align: center;
     line-height: 50px;
     font-size: 24px;

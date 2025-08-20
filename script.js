@@ -13,17 +13,30 @@ let startTime;
 let chartData;
 let audio1;
 let audio2;
-let audioDelay = 1380; // Retraso en milisegundos (2 segundos)
+let audioDelay = 700;
 let currentAnim = "idle";
 let animFrames = {};
 let animIndex = 0;
 let animTimer;
 let idleTimeout = null;
+const arrowTravelTime = 0.7;
+
+// Enemy sprite variables
+let enemyAnim = "idle";
+let enemyFrames = {};
+let enemyIndex = 0;
+let enemyTimer;
+let enemyIdleTimeout = null;
+let enemyImage;
 
 // Spritesheet variables
 let spriteImage;
 let canvas = document.getElementById("gameCanvas");
 let ctx = canvas.getContext("2d");
+
+// Enemy canvas
+let enemyCanvas = document.getElementById("enemyCanvas");
+let enemyCtx = enemyCanvas.getContext("2d");
 
 // Función para cargar un archivo JSON
 async function loadChart(filePath) {
@@ -61,37 +74,54 @@ function parseAtlas(xml) {
 
 // Agrupa los frames por animación usando los nombres del XML
 async function loadSpriteData() {
-  const { image, xml } = await loadAssets("./sprites/Characters/BOYFRIEND.png", "./sprites/Characters/BOYFRIEND.xml");
-  const frames = parseAtlas(xml);
+  // Boyfriend
+  const { image: bfImage, xml: bfXml } = await loadAssets("./sprites/Characters/BOYFRIEND.png", "./sprites/Characters/BOYFRIEND.xml");
+  const bfFrames = parseAtlas(bfXml);
 
   animFrames = {
-    idle: frames.filter(f => f.name.startsWith("BF idle dance")),
-    left: frames.filter(f => f.name.startsWith("BF NOTE LEFT")),
-    right: frames.filter(f => f.name.startsWith("BF NOTE RIGHT")),
-    up: frames.filter(f => f.name.startsWith("BF NOTE UP")),
-    down: frames.filter(f => f.name.startsWith("BF NOTE DOWN"))
+    idle: bfFrames.filter(f => f.name.startsWith("BF idle dance")),
+    left: bfFrames.filter(f => f.name.startsWith("BF NOTE LEFT")),
+    right: bfFrames.filter(f => f.name.startsWith("BF NOTE RIGHT")),
+    up: bfFrames.filter(f => f.name.startsWith("BF NOTE UP")),
+    down: bfFrames.filter(f => f.name.startsWith("BF NOTE DOWN"))
   };
 
-  return image;
+  // Enemy (cambia las rutas y los nombres según tu enemigo)
+  const { image: enImage, xml: enXml } = await loadAssets("./sprites/Characters/WhittyCrazy.png", "./sprites/Characters/WhittyCrazy.xml");
+  const enFrames = parseAtlas(enXml);
+
+  enemyFrames = {
+    idle: enFrames.filter(f => f.name.startsWith("Whitty idle dance")),
+    left: enFrames.filter(f => f.name.startsWith("Whitty Sing Note LEFT")),
+    right: enFrames.filter(f => f.name.startsWith("whitty sing note right")),
+    up: enFrames.filter(f => f.name.startsWith("Whitty Sing Note UP")),
+    down: enFrames.filter(f => f.name.startsWith("Whitty Sing Note DOWN"))
+  };
+
+  enemyImage = enImage;
+  return bfImage;
 }
 
-function drawFrame(ctx, image, frame, dx, dy) {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+function drawFrame(ctx, image, frame, dx, dy, canvasRef) {
+  // Si se pasa un canvas, usa ese, si no usa el global
+  const useCanvas = canvasRef || canvas;
+  const useCtx = ctx || useCanvas.getContext("2d");
+  useCtx.clearRect(0, 0, useCanvas.width, useCanvas.height);
 
-  // Calcula el escalado para que el frame quepa en el canvas (fit contain)
+  // Fit contain
   const scale = Math.min(
-    canvas.width / frame.w,
-    canvas.height / frame.h
+    useCanvas.width / frame.w,
+    useCanvas.height / frame.h
   );
   const drawW = frame.w * scale;
   const drawH = frame.h * scale;
-  const drawX = (canvas.width - drawW) / 2;
-  const drawY = (canvas.height - drawH) / 2;
+  const drawX = (useCanvas.width - drawW) / 2;
+  const drawY = (useCanvas.height - drawH) / 2;
 
-  ctx.drawImage(
+  useCtx.drawImage(
     image,
-    frame.x, frame.y, frame.w, frame.h, // origen en spritesheet
-    drawX, drawY, drawW, drawH          // destino en pantalla (centrado y escalado)
+    frame.x, frame.y, frame.w, frame.h,
+    drawX, drawY, drawW, drawH
   );
 }
 
@@ -101,19 +131,31 @@ function startSpriteAnim() {
   animTimer = setInterval(() => {
     const framesArr = animFrames[currentAnim] || animFrames.idle;
     if (framesArr && framesArr.length > 0) {
-      drawFrame(ctx, spriteImage, framesArr[animIndex % framesArr.length], 0, 0);
+      drawFrame(ctx, spriteImage, framesArr[animIndex % framesArr.length], 0, 0, canvas);
       animIndex++;
     }
-  }, 45); // Animación más fluida (16ms = 60fps, 60ms = ~16fps)
+  }, 45);
+}
+
+function startEnemyAnim() {
+  clearInterval(enemyTimer);
+  enemyIndex = 0;
+  enemyTimer = setInterval(() => {
+    const framesArr = enemyFrames[enemyAnim] || enemyFrames.idle;
+    if (framesArr && framesArr.length > 0) {
+      drawFrame(enemyCtx, enemyImage, framesArr[enemyIndex % framesArr.length], 0, 0, enemyCanvas);
+      enemyIndex++;
+    }
+  }, 45);
 }
 
 // Función para generar una flecha con velocidad controlada
 function spawnArrow(direction, speed) {
   const arrow = document.createElement("div");
   arrow.classList.add("arrow");
-  arrow.style.bottom = "0"; // Empieza desde abajo
-  arrow.style.left = positions[direction]; // Posición horizontal exacta
-  arrow.dataset.direction = direction; // Guardar dirección como atributo
+  arrow.style.bottom = "0";
+  arrow.style.left = positions[direction];
+  arrow.dataset.direction = direction;
   switch (direction) {
     case "ArrowLeft":
       arrow.style.backgroundImage = "url('sprites/Arrows/LeftArrow.png')";
@@ -136,12 +178,11 @@ function spawnArrow(direction, speed) {
   }
   gameArea.appendChild(arrow);
 
-  // Animar la flecha hacia arriba
   let position = 0;
   const interval = setInterval(() => {
-    position += speed; // Usar la velocidad en lugar de un valor fijo
+    position += speed;
     arrow.style.bottom = position + "px";
-    if (position > 450) { // Si pasa el área de los targets
+    if (position > 650) {
       clearInterval(interval);
       if (gameArea.contains(arrow)) {
         gameArea.removeChild(arrow);
@@ -150,86 +191,101 @@ function spawnArrow(direction, speed) {
   }, 16);
 }
 
-let lastNoteTime = 0;  // Variable para controlar el tiempo de la última nota generada
+let lastNoteTime = 0;
+let lastEnemyNoteTime = 0;
 
 function startGame() {
-  startTime = performance.now(); // Guardar el momento de inicio
+  startTime = performance.now();
 
-  // Retrasar el inicio del audio
   setTimeout(() => {
-    audio1.play(); // Reproducir el audio después del retraso
+    audio1.play();
     audio2.play();
   }, audioDelay);
 
-  // Obtener la velocidad desde el JSON
-  const speed = chartData.song.speed * 2.4 || 1; // Valor por defecto es 1 si no se especifica
+  const speed = chartData.song.speed * 4 || 1;
 
-  const gameLoop = () => {
-    const elapsedTime = (performance.now() - startTime) / 1000; // Tiempo en segundos
+const gameLoop = () => {
+  const elapsedTime = (performance.now() - startTime) / 1000;
 
-    // Recorrer todas las secciones de notas
-    chartData.song.notes.forEach((section) => {
-      // Solo procesamos las secciones "mustHitSection" == true
-      if (section.mustHitSection) {
-        // Buscar notas para esta sección
-        section.sectionNotes.forEach(note => {
-          const [noteTime, direction, _] = note; // Ignorar el tercer valor de la nota
+  chartData.song.notes.forEach((section) => {
+    // Inicializa sets para notas generadas
+    if (!section.generatedPlayerNotes) section.generatedPlayerNotes = new Set();
+    if (!section.generatedEnemyNotes) section.generatedEnemyNotes = new Set();
 
-          const noteTimeInSeconds = noteTime / 1000;
+    if (section.mustHitSection) {
+      section.sectionNotes.forEach(note => {
+        const [noteTime, direction, _] = note;
+        const noteTimeInSeconds = noteTime / 1000;
+        const noteId = noteTime + '-' + direction;
 
-          // Solo genera la flecha si el tiempo es diferente al último
-          if (elapsedTime >= noteTimeInSeconds && elapsedTime < noteTimeInSeconds + 0.1 && Math.abs(noteTimeInSeconds - lastNoteTime) > 0.1) {
-            // Mapeo de dirección: 0 = ArrowLeft, 1 = ArrowUp, 2 = ArrowDown, 3 = ArrowRight
-            const arrowDirection = direction === 0 ? "ArrowLeft" :
-              direction === 1 ? "ArrowUp" :
-                direction === 2 ? "ArrowDown" :
-                  direction === 3 ? "ArrowRight" : null;
-            if (arrowDirection) {
-              spawnArrow(arrowDirection, speed); // Pasar el parámetro de velocidad a spawnArrow
-              lastNoteTime = noteTimeInSeconds; // Actualizar el tiempo de la última nota generada
-            }
+        if (!section.generatedPlayerNotes.has(noteId) &&
+            elapsedTime >= noteTimeInSeconds &&
+            elapsedTime < noteTimeInSeconds + 0.2) {
+          // Flechas del jugador (direcciones 0-3)
+          const arrowDirection = direction === 0 ? "ArrowLeft" :
+                                 direction === 1 ? "ArrowUp" :
+                                 direction === 2 ? "ArrowDown" :
+                                 direction === 3 ? "ArrowRight" : null;
+          if (arrowDirection) {
+            spawnArrow(arrowDirection, speed);
+            section.generatedPlayerNotes.add(noteId);
           }
-        });
-      }
+        }
+      });
+    } else {
+      section.sectionNotes.forEach(note => {
+        const [noteTime, direction, _] = note;
+        const noteTimeInSeconds = noteTime / 1000;
+        const noteId = noteTime + '-' + direction;
 
-      // Sincronizar las notas de la sección "false" solo si el segundo valor está entre 4 y 7
-      if (!section.mustHitSection) {
-        // Buscar notas para esta sección
-        section.sectionNotes.forEach(note => {
-          const [noteTime, direction, _] = note; // Ignorar el tercer valor de la nota
-
-          const noteTimeInSeconds = noteTime / 1000;
-
-          // Verificar si el segundo valor de la dirección está entre 4 y 7
-          if (direction >= 4 && direction <= 7 && elapsedTime >= noteTimeInSeconds && elapsedTime < noteTimeInSeconds + 0.1 && Math.abs(noteTimeInSeconds - lastNoteTime) > 0.1) {
-            // Mapeo de dirección: 4 -> 0 (ArrowLeft), 5 -> 1 (ArrowUp), 6 -> 2 (ArrowDown), 7 -> 3 (ArrowRight)
-            const mappedDirection = direction === 4 ? "ArrowLeft" :
-              direction === 5 ? "ArrowUp" :
-                direction === 6 ? "ArrowDown" :
-                  direction === 7 ? "ArrowRight" : null;
-
-            // Solo genera la flecha si el tiempo es el adecuado
-            if (mappedDirection) {
-              const arrowDirection = mappedDirection;
-              spawnArrow(arrowDirection, speed); // Generar la flecha correspondiente
-              lastNoteTime = noteTimeInSeconds; // Actualizar el tiempo de la última nota generada
-            }
+        // Flechas del enemigo (direcciones 0-3)
+        if (!section.generatedEnemyNotes.has(noteId) &&
+            elapsedTime >= noteTimeInSeconds + arrowTravelTime &&
+            elapsedTime < noteTimeInSeconds + arrowTravelTime + 0.2) {
+          const mappedDirection = direction === 0 ? "left" :
+                                  direction === 1 ? "up" :
+                                  direction === 2 ? "down" :
+                                  direction === 3 ? "right" : null;
+          if (mappedDirection) {
+            enemyAnim = mappedDirection;
+            enemyIndex = 0;
+            startEnemyAnim();
+            if (enemyIdleTimeout) clearTimeout(enemyIdleTimeout);
+            enemyIdleTimeout = setTimeout(() => {
+              enemyAnim = "idle";
+              enemyIndex = 0;
+              startEnemyAnim();
+            }, 550);
+            section.generatedEnemyNotes.add(noteId);
           }
-        });
-      }
-    });
+        }
 
-    requestAnimationFrame(gameLoop); // Continuar el bucle del juego
-  };
+        // Flechas del jugador (direcciones 4-7)
+        if (!section.generatedPlayerNotes.has(noteId) &&
+            elapsedTime >= noteTimeInSeconds &&
+            elapsedTime < noteTimeInSeconds + 0.2) {
+          const arrowDirection = direction === 4 ? "ArrowLeft" :
+                                 direction === 5 ? "ArrowUp" :
+                                 direction === 6 ? "ArrowDown" :
+                                 direction === 7 ? "ArrowRight" : null;
+          if (arrowDirection) {
+            spawnArrow(arrowDirection, speed);
+            section.generatedPlayerNotes.add(noteId);
+          }
+        }
+      });
+    }
+  });
+
+  requestAnimationFrame(gameLoop);
+};
 
   requestAnimationFrame(gameLoop);
 }
 
-// Animación del sprite al presionar flecha
 window.addEventListener("keydown", (e) => {
   let mappedKey = e.key;
 
-  // Mapear las teclas 'wasd' a las flechas
   switch (e.key) {
     case 'a':
       mappedKey = 'ArrowLeft';
@@ -247,17 +303,14 @@ window.addEventListener("keydown", (e) => {
       break;
   }
 
-  // Verifica si la tecla es una flecha y procesar las colisiones
   if (keys[mappedKey]) {
-    // Cambia la animación del sprite
     if (mappedKey === "ArrowLeft") currentAnim = "left";
     else if (mappedKey === "ArrowRight") currentAnim = "right";
     else if (mappedKey === "ArrowUp") currentAnim = "up";
     else if (mappedKey === "ArrowDown") currentAnim = "down";
     animIndex = 0;
     startSpriteAnim();
-    
-    // Reinicia el temporizador idle
+
     if (idleTimeout) clearTimeout(idleTimeout);
     idleTimeout = setTimeout(() => {
       currentAnim = "idle";
@@ -265,17 +318,15 @@ window.addEventListener("keydown", (e) => {
       startSpriteAnim();
     }, 550);
 
-    // Procesa las flechas activas
     const activeArrows = document.querySelectorAll('.arrow');
     activeArrows.forEach(arrow => {
       const arrowRect = arrow.getBoundingClientRect();
       const target = document.getElementById(mappedKey.replace("Arrow", "").toLowerCase());
       const targetRect = target.getBoundingClientRect();
 
-      // Comprobar si la flecha está cerca del target y coincide la dirección
-      if (Math.abs(arrowRect.top - targetRect.top) < 30 && arrow.dataset.direction === mappedKey) {
+      if (Math.abs(arrowRect.top - targetRect.top) < 40 && arrow.dataset.direction === mappedKey) {
         if (gameArea.contains(arrow)) {
-          arrow.remove(); // Eliminar flecha si coincide
+          arrow.remove();
           score += 10;
           console.log(`¡Acierto! Puntuación: ${score}`);
         }
@@ -284,17 +335,17 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-// Inicializar el juego al hacer clic en el botón
 button.addEventListener("click", async () => {
-  button.disabled = true; // Desactiva el botón para evitar múltiples juegos
+  button.disabled = true;
 
   try {
-    chartData = await loadChart('./charts/testWhitty.json'); // Cargar el chart
-    audio1 = new Audio('./audio/Voices.ogg'); // Cargar la canción
-    audio2 = new Audio('./audio/Inst.ogg'); // Cargar la canción
-    spriteImage = await loadSpriteData(); // Cargar sprites y animaciones
-    startGame(); // Iniciar el juego
-    startSpriteAnim(); // Animación idle inicial
+    chartData = await loadChart('./charts/ballistic.json');
+    audio1 = new Audio('./audio/Ballistic/Voices.ogg');
+    audio2 = new Audio('./audio/Ballistic/Inst.ogg');
+    spriteImage = await loadSpriteData();
+    startGame();
+    startSpriteAnim();
+    startEnemyAnim(); // Inicializa animación del enemigo en idle
   } catch (error) {
     console.error("Error al cargar el juego:", error);
   }
